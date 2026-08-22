@@ -6,11 +6,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles; // 1. Impor Trait ini
+use Laravel\Sanctum\HasApiTokens; // 1. Impor Trait Sanctum
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles; // 2. Tambahkan HasRoles di sini
+    use HasFactory, Notifiable, HasRoles, HasApiTokens; // 2. Tambahkan HasApiTokens di sini
 
     /**
      * The attributes that are mass assignable.

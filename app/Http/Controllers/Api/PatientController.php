@@ -8,7 +8,6 @@ use Illuminate\Http\Request;
 
 class PatientController extends Controller
 {
-    // List & Pencarian Pasien (By Name / NIK / No BPJS)
     public function index(Request $request)
     {
         $search = $request->query('search');
@@ -24,12 +23,12 @@ class PatientController extends Controller
         return response()->json(['success' => true, 'data' => $patients]);
     }
 
-    // Registrasi Pasien Baru
     public function store(Request $request)
     {
+        // Ubah 'length:16' menjadi 'digits:16' atau 'size:16'
         $validated = $request->validate([
-            'nik'         => 'nullable|string|length:16|unique:patients,nik',
-            'bpjs_number' => 'nullable|string|length:13|unique:patients,bpjs_number',
+            'nik'         => 'nullable|string|digits:16|unique:patients,nik',
+            'bpjs_number' => 'nullable|string|digits:13|unique:patients,bpjs_number',
             'name'        => 'required|string|max:150',
             'gender'      => 'required|in:L,P',
             'birth_date'  => 'required|date',

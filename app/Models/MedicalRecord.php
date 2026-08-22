@@ -6,5 +6,5 @@ use Illuminate\Database\Eloquent\Model;
 
 class MedicalRecord extends Model
 {
-    //
+    protected $guarded = ['id'];
 }
