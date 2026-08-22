@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DrugController;
 use App\Http\Controllers\Api\MedicalRecordController;
 use App\Http\Controllers\Api\PatientController;
+use App\Http\Controllers\Api\PurchaseInvoiceController;
 use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\StockOpnameController;
 use Illuminate\Support\Facades\Route;
@@ -36,4 +37,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Penjualan Kasir / POS
     Route::get('/sales', [SalesController::class, 'index']);
     Route::post('/sales', [SalesController::class, 'store']);
+
+    Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index']);
+    Route::get('/purchase-invoices/{id}', [PurchaseInvoiceController::class, 'show']);
+    Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store']);
 });
