@@ -12,4 +12,9 @@ class DrugBatch extends Model
     {
         return $this->belongsTo(Drug::class);
     }
+
+    public function stockOpnames()
+    {
+        return $this->hasMany(StockOpname::class, 'drug_batch_id');
+    }
 }

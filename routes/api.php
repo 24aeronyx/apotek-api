@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\PurchaseInvoiceController;
 use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\StockOpnameController;
+use App\Http\Controllers\Api\SupplierController;
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -41,4 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index']);
     Route::get('/purchase-invoices/{id}', [PurchaseInvoiceController::class, 'show']);
     Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store']);
+
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::post('/suppliers', [SupplierController::class, 'store']);
 });
