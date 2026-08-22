@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\DrugController;
 use App\Http\Controllers\Api\MedicalRecordController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\SalesController;
+use App\Http\Controllers\Api\StockOpnameController;
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -20,6 +21,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/drugs', [DrugController::class, 'index']);
     Route::post('/drugs', [DrugController::class, 'store']);
     Route::post('/drugs/{id}/batches', [DrugController::class, 'addBatch']);
+
+    Route::get('/stock-opnames', [StockOpnameController::class, 'index']);
+    Route::post('/stock-opnames', [StockOpnameController::class, 'store']);
 
     // Master Pasien
     Route::get('/patients', [PatientController::class, 'index']);
