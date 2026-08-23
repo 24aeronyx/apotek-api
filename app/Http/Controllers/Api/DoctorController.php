@@ -6,26 +6,30 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 use Exception;
 
 class DoctorController extends Controller
 {
-    // List Semua Dokter
+    // List Semua Dokter dari Tabel Users
     public function index(Request $request)
     {
         $search = $request->query('search');
+        $perPage  = $request->query('per_page', 10);
 
-        $query = User::whereIn('role', ['doctor', 'dokter'])
-            ->orderBy('name', 'asc');
+        // Query pengguna yang memiliki role doctor/dokter/Doctor/Dokter
+        $query = User::whereHas('roles', function ($q) {
+            $q->whereIn('name', ['doctor', 'dokter', 'Doctor', 'Dokter']);
+        })->with('roles')->orderBy('name', 'asc');
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'ilike', "%{$search}%")
                   ->orWhere('email', 'ilike', "%{$search}%");
             });
         }
 
-        $doctors = $query->get();
+        $doctors = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
@@ -45,17 +49,22 @@ class DoctorController extends Controller
 
         try {
             $doctor = User::create([
-                'name'     => $validated['name'],
-                'email'    => $validated['email'],
-                'password' => Hash::make($validated['password']),
-                'role'     => 'doctor',
-                'phone'    => $validated['phone'] ?? null,
+                'name'      => $validated['name'],
+                'email'     => $validated['email'],
+                'username'  => strstr($validated['email'], '@', true),
+                'password'  => Hash::make($validated['password']),
+                'phone'     => $validated['phone'] ?? null,
+                'is_active' => true,
             ]);
+
+            // Assign Role 'doctor' di Spatie
+            Role::firstOrCreate(['name' => 'doctor', 'guard_name' => 'web']);
+            $doctor->assignRole('doctor');
 
             return response()->json([
                 'success' => true,
                 'message' => 'Dokter berhasil ditambahkan',
-                'data'    => $doctor
+                'data'    => $doctor->load('roles')
             ], 201);
         } catch (Exception $e) {
             return response()->json([
@@ -65,10 +74,10 @@ class DoctorController extends Controller
         }
     }
 
-    // Update Data Dokter
+    // Update Dokter
     public function update(Request $request, $id)
     {
-        $doctor = User::whereIn('role', ['doctor', 'dokter'])->findOrFail($id);
+        $doctor = User::findOrFail($id);
 
         $validated = $request->validate([
             'name'  => 'required|string|max:255',
@@ -83,7 +92,6 @@ class DoctorController extends Controller
                 'phone' => $validated['phone'] ?? null,
             ]);
 
-            // Jika ada perubahan password
             if ($request->filled('password')) {
                 $doctor->update(['password' => Hash::make($request->password)]);
             }
@@ -91,7 +99,7 @@ class DoctorController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Data dokter berhasil diperbarui',
-                'data'    => $doctor
+                'data'    => $doctor->load('roles')
             ]);
         } catch (Exception $e) {
             return response()->json([
@@ -105,7 +113,7 @@ class DoctorController extends Controller
     public function destroy($id)
     {
         try {
-            $doctor = User::whereIn('role', ['doctor', 'dokter'])->findOrFail($id);
+            $doctor = User::findOrFail($id);
             $doctor->delete();
 
             return response()->json([

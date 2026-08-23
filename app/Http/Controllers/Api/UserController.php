@@ -12,30 +12,32 @@ use Exception;
 class UserController extends Controller
 {
     public function index(Request $request)
-    {
-        $search = $request->query('search');
-        $role = $request->query('role');
+{
+    $search = $request->query('search');
+    $role   = $request->query('role');
+    $perPage = $request->query('per_page', 10); // 10 data per halaman
 
-        $query = User::with('roles')->orderBy('name', 'asc');
+    $query = User::with('roles')->orderBy('name', 'asc');
 
-        if ($role) {
-            $query->role($role);
-        }
+    if ($role) {
+        $query->role($role);
+    }
 
-        if ($search) {
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                  ->orWhere('email', 'ilike', "%{$search}%")
-                  ->orWhere('username', 'ilike', "%{$search}%");
-            });
-        }
+    if ($search) {
+        $query->where(function($q) use ($search) {
+            $q->where('name', 'ilike', "%{$search}%")
+              ->orWhere('email', 'ilike', "%{$search}%")
+              ->orWhere('username', 'ilike', "%{$search}%");
+        });
+    }
 
-        $users = $query->get();
+    // Menggunakan paginate() menggantikan get()
+    $users = $query->paginate($perPage);
 
-        return response()->json([
-            'success' => true,
-            'data'    => $users
-        ]);
+    return response()->json([
+        'success' => true,
+        'data'    => $users
+    ]);
     }
 
     public function store(Request $request)

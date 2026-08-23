@@ -12,22 +12,56 @@ use Carbon\Carbon;
 
 class StockOpnameController extends Controller
 {
-    // Get Daftar Audit Stok Bulan Ini (Semua Batch Obat + Status Opname)
     public function index(Request $request)
     {
-        // Ambil parameter bulan (default: bulan ini YYYY-MM)
-        $month = $request->query('month', Carbon::now()->format('Y-m'));
+        $month   = $request->query('month', Carbon::now()->format('Y-m'));
+        $search  = $request->query('search');
+        $status  = $request->query('status', 'ALL'); // ALL, COMPLETED, PENDING
+        $perPage = $request->query('per_page', 10);
 
-        $batches = DrugBatch::with(['drug', 'stockOpnames' => function ($query) use ($month) {
-            $query->where(DB::raw("TO_CHAR(created_at, 'YYYY-MM')"), $month)
-                  ->latest('id');
-        }])
-        ->where('stock_qty', '>=', 0)
-        ->get()
-        ->map(function ($batch) {
-            // Ambil opname terakhir di bulan berjalan jika ada
+        // Kueri Dasar
+        $baseQuery = DrugBatch::where('stock_qty', '>=', 0);
+
+        // Hitung Ringkasan Statistik Global (Seluruh Data)
+        $totalBatches = (clone $baseQuery)->count();
+        
+        $completedBatches = (clone $baseQuery)->whereHas('stockOpnames', function ($q) use ($month) {
+            $q->where(DB::raw("TO_CHAR(created_at, 'YYYY-MM')"), $month);
+        })->count();
+
+        $pendingBatches = $totalBatches - $completedBatches;
+
+        // Kueri Data Utama dengan Filter
+        $query = DrugBatch::with(['drug', 'stockOpnames' => function ($q) use ($month) {
+            $q->where(DB::raw("TO_CHAR(created_at, 'YYYY-MM')"), $month)
+              ->latest('id');
+        }])->where('stock_qty', '>=', 0);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('batch_number', 'ilike', "%{$search}%")
+                  ->orWhereHas('drug', function ($dq) use ($search) {
+                      $dq->where('name', 'ilike', "%{$search}%")
+                         ->orWhere('code', 'ilike', "%{$search}%");
+                  });
+            });
+        }
+
+        if ($status === 'COMPLETED') {
+            $query->whereHas('stockOpnames', function ($q) use ($month) {
+                $q->where(DB::raw("TO_CHAR(created_at, 'YYYY-MM')"), $month);
+            });
+        } elseif ($status === 'PENDING') {
+            $query->whereDoesntHave('stockOpnames', function ($q) use ($month) {
+                $q->where(DB::raw("TO_CHAR(created_at, 'YYYY-MM')"), $month);
+            });
+        }
+
+        $batches = $query->paginate($perPage);
+
+        $batches->getCollection()->transform(function ($batch) {
             $latestOpname = $batch->stockOpnames->first();
-            
+
             return [
                 'batch_id'       => $batch->id,
                 'drug_code'      => $batch->drug->code ?? '-',
@@ -49,13 +83,17 @@ class StockOpnameController extends Controller
         });
 
         return response()->json([
-            'success' => true,
+            'success'       => true,
             'current_month' => $month,
-            'data' => $batches
+            'summary'       => [
+                'total'     => $totalBatches,
+                'completed' => $completedBatches,
+                'pending'   => $pendingBatches,
+            ],
+            'data'          => $batches
         ]);
     }
 
-    // Eksekusi Adjustment / Opname
     public function store(Request $request)
     {
         $request->validate([
@@ -71,7 +109,6 @@ class StockOpnameController extends Controller
             $physicalQty = $request->physical_qty;
             $difference = $physicalQty - $systemQty;
 
-            // 1. Simpan Record Opname
             $opname = StockOpname::create([
                 'drug_batch_id'  => $batch->id,
                 'system_qty'     => $systemQty,
@@ -81,11 +118,9 @@ class StockOpnameController extends Controller
                 'adjusted_by'    => $request->user()->id,
             ]);
 
-            // 2. Update Stok Fisik Batch
             $batch->stock_qty = $physicalQty;
             $batch->save();
 
-            // 3. Catat Mutasi Stok jika ada selisih
             if ($difference !== 0) {
                 StockMutation::create([
                     'drug_batch_id'  => $batch->id,
@@ -107,7 +142,10 @@ class StockOpnameController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Gagal opname: ' . $e->getMessage()], 500);
+            return response()->json([
+                'success' => false, 
+                'message' => 'Gagal opname: ' . $e->getMessage()
+            ], 500);
         }
     }
 }
