@@ -14,13 +14,13 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
         $user = User::where('email', $request->email)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Kredensial yang diberikan tidak cocok.'],
             ]);
@@ -32,10 +32,10 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Login berhasil',
-            'data'    => [
-                'user'  => [
-                    'id'    => $user->id,
-                    'name'  => $user->name,
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
                     'email' => $user->email,
                     'roles' => $user->getRoleNames(),
                 ],
@@ -51,11 +51,11 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'roles'       => $user->getRoleNames(),
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->getRoleNames(),
                 'permissions' => $user->getAllPermissions()->pluck('name'),
             ],
         ]);
@@ -71,4 +71,5 @@ class AuthController extends Controller
             'message' => 'Logout berhasil',
         ]);
     }
+
 }

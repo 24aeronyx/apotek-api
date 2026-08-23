@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DoctorController;
 use App\Http\Controllers\Api\DrugController;
 use App\Http\Controllers\Api\MedicalRecordController;
 use App\Http\Controllers\Api\PatientController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Api\PurchaseInvoiceController;
 use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\StockOpnameController;
 use App\Http\Controllers\Api\SupplierController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -32,12 +34,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/patients', [PatientController::class, 'store']);
 
     // Kunjungan & Rekam Medis Elektronik (RME)
+    Route::get('/visits', [MedicalRecordController::class, 'getVisits']);
     Route::post('/visits', [MedicalRecordController::class, 'createVisit']);
-    Route::post('/visits/{visitId}/rme', [MedicalRecordController::class, 'storeRme']);
+    Route::post('/visits/{id}/rme', [MedicalRecordController::class, 'storeRme']);
 
     // Penjualan Kasir / POS
     Route::get('/sales', [SalesController::class, 'index']);
+    Route::get('/sales/{id}', [SalesController::class, 'show']);
     Route::post('/sales', [SalesController::class, 'store']);
+    Route::post('/sales/{id}/return', [SalesController::class, 'returnSale']);
 
     Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index']);
     Route::get('/purchase-invoices/{id}', [PurchaseInvoiceController::class, 'show']);
@@ -45,4 +50,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::post('/suppliers', [SupplierController::class, 'store']);
+
+    Route::apiResource('/doctors', DoctorController::class);
+
+    Route::apiResource('/users', UserController::class);
+    
 });

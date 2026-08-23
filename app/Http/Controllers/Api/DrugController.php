@@ -15,19 +15,23 @@ class DrugController extends Controller
     // 1. Ambil Semua Data Obat beserta Sisa Stok (FEFO)
     public function index()
     {
-        $drugs = Drug::with(['category', 'batches' => function ($q) {
-            $q->where('stock_qty', '>', 0)->orderBy('expired_date', 'asc');
-        }])
-        ->where('is_active', true)
-        ->get()
-        ->map(function ($drug) {
-            $drug->total_stock = $drug->batches->sum('stock_qty');
-            return $drug;
-        });
+        $drugs = Drug::with([
+            'category',
+            'batches' => function ($q) {
+                $q->where('stock_qty', '>', 0)->orderBy('expired_date', 'asc');
+            }
+        ])
+            ->where('is_active', true)
+            ->orderBy('name', 'asc')
+            ->get()
+            ->map(function ($drug) {
+                $drug->total_stock = (int) $drug->batches->sum('stock_qty');
+                return $drug;
+            });
 
         return response()->json([
             'success' => true,
-            'data'    => $drugs
+            'data' => $drugs
         ]);
     }
 
@@ -35,47 +39,47 @@ class DrugController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'code'           => 'required|string|unique:drugs,code',
-            'name'           => 'required|string',
-            'category_id'    => 'nullable|exists:drug_categories,id',
-            'kfa_code'       => 'nullable|string', // Kesiapan SATUSEHAT
-            'unit'           => 'required|string',
+            'code' => 'required|string|unique:drugs,code',
+            'name' => 'required|string',
+            'category_id' => 'nullable|exists:drug_categories,id',
+            'kfa_code' => 'nullable|string', // Kesiapan SATUSEHAT
+            'unit' => 'required|string',
             'purchase_price' => 'required|numeric|min:0',
-            'selling_price'  => 'required|numeric|min:0',
-            'batch_number'   => 'required|string',
-            'expired_date'   => 'required|date',
-            'initial_stock'  => 'required|integer|min:1',
+            'selling_price' => 'required|numeric|min:0',
+            'batch_number' => 'required|string',
+            'expired_date' => 'required|date',
+            'initial_stock' => 'required|integer|min:1',
         ]);
 
         try {
             $drug = DB::transaction(function () use ($validated) {
                 // Buat Master Obat
                 $drug = Drug::create([
-                    'code'           => $validated['code'],
-                    'name'           => $validated['name'],
-                    'category_id'    => $validated['category_id'] ?? null,
-                    'kfa_code'       => $validated['kfa_code'] ?? null,
-                    'unit'           => $validated['unit'],
+                    'code' => $validated['code'],
+                    'name' => $validated['name'],
+                    'category_id' => $validated['category_id'] ?? null,
+                    'kfa_code' => $validated['kfa_code'] ?? null,
+                    'unit' => $validated['unit'],
                     'purchase_price' => $validated['purchase_price'],
-                    'selling_price'  => $validated['selling_price'],
+                    'selling_price' => $validated['selling_price'],
                 ]);
 
                 // Buat Batch Stok Pertama
                 $batch = DrugBatch::create([
-                    'drug_id'      => $drug->id,
+                    'drug_id' => $drug->id,
                     'batch_number' => $validated['batch_number'],
                     'expired_date' => $validated['expired_date'],
-                    'stock_qty'    => $validated['initial_stock'],
+                    'stock_qty' => $validated['initial_stock'],
                 ]);
 
                 // Log Mutasi Stok
                 StockMutation::create([
-                    'drug_batch_id'  => $batch->id,
-                    'type'           => 'IN',
-                    'qty'            => $validated['initial_stock'],
+                    'drug_batch_id' => $batch->id,
+                    'type' => 'IN',
+                    'qty' => $validated['initial_stock'],
                     'reference_type' => 'INITIAL_STOCK',
-                    'notes'          => 'Stok awal pendaftaran obat',
-                    'created_by'     => auth()->id(),
+                    'notes' => 'Stok awal pendaftaran obat',
+                    'created_by' => auth()->id(),
                 ]);
 
                 return $drug->load('batches');
@@ -84,7 +88,7 @@ class DrugController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Obat & batch stok awal berhasil ditambahkan',
-                'data'    => $drug
+                'data' => $drug
             ], 201);
 
         } catch (Exception $e) {
@@ -101,26 +105,26 @@ class DrugController extends Controller
         $validated = $request->validate([
             'batch_number' => 'required|string',
             'expired_date' => 'required|date',
-            'stock_qty'    => 'required|integer|min:1',
+            'stock_qty' => 'required|integer|min:1',
         ]);
 
         $drug = Drug::findOrFail($drugId);
 
         $batch = DB::transaction(function () use ($drug, $validated) {
             $batch = DrugBatch::create([
-                'drug_id'      => $drug->id,
+                'drug_id' => $drug->id,
                 'batch_number' => $validated['batch_number'],
                 'expired_date' => $validated['expired_date'],
-                'stock_qty'    => $validated['stock_qty'],
+                'stock_qty' => $validated['stock_qty'],
             ]);
 
             StockMutation::create([
-                'drug_batch_id'  => $batch->id,
-                'type'           => 'IN',
-                'qty'            => $validated['stock_qty'],
+                'drug_batch_id' => $batch->id,
+                'type' => 'IN',
+                'qty' => $validated['stock_qty'],
                 'reference_type' => 'RESTOCK',
-                'notes'          => 'Penambahan stok/batch baru',
-                'created_by'     => auth()->id(),
+                'notes' => 'Penambahan stok/batch baru',
+                'created_by' => auth()->id(),
             ]);
 
             return $batch;
@@ -129,7 +133,7 @@ class DrugController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Batch baru berhasil ditambahkan',
-            'data'    => $batch
+            'data' => $batch
         ], 201);
     }
 }

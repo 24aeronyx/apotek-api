@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     public function up(): void
     {
         // 1. Patient Master
@@ -103,6 +102,8 @@ return new class extends Migration
             $table->enum('payment_method', ['CASH', 'QRIS', 'DEBIT', 'TRANSFER', 'BPJS'])->default('CASH');
             $table->string('satusehat_medication_dispense_id', 100)->nullable();
             $table->timestamp('created_at')->useCurrent();
+            $table->decimal('pay_amount', 15, 2)->default(0);
+            $table->decimal('change_amount', 15, 2)->default(0);
         });
 
         Schema::create('sale_items', function (Blueprint $table) {
