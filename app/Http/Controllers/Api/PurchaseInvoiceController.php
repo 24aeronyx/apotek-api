@@ -12,13 +12,16 @@ use Illuminate\Support\Facades\DB;
 
 class PurchaseInvoiceController extends Controller
 {
-    public function index()
-    {
-        $invoices = PurchaseInvoice::with(['supplier', 'items.drug', 'items.batch', 'creator'])
-            ->orderBy('id', 'desc')
-            ->paginate(15);
+   public function index()
+{
+    $invoices = PurchaseInvoice::with(['supplier', 'items.drug', 'items.batch'])
+        ->latest()
+        ->paginate(10);
 
-        return response()->json(['success' => true, 'data' => $invoices]);
+    return response()->json([
+        'success' => true,
+        'data'    => $invoices
+    ]);
     }
 
     public function show($id)

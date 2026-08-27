@@ -9,23 +9,33 @@ class PurchaseInvoice extends Model
 {
     use HasFactory;
 
-    // Matikan timestamps bawaan agar Laravel tidak mencari kolom updated_at
-    public $timestamps = false;
+    protected $fillable = [
+        'supplier_id',
+        'invoice_number',
+        'invoice_date',
+        'ppn_type',
+        'subtotal',
+        'ppn_amount',
+        'grand_total',
+        'notes',
+        'created_by',
+    ];
 
-    protected $guarded = ['id'];
-
+    // Relasi ke Supplier
     public function supplier()
     {
-        return $this->belongsTo(Supplier::class);
+        return $this->belongsTo(Supplier::class, 'supplier_id');
     }
 
-    public function items()
-    {
-        return $this->hasMany(PurchaseInvoiceItem::class);
-    }
-
+    // Relasi ke User / Petugas Input
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    // Relasi ke Item Barang / Detail Obat
+    public function items()
+    {
+        return $this->hasMany(PurchaseInvoiceItem::class);
     }
 }

@@ -48,8 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/purchase-invoices/{id}', [PurchaseInvoiceController::class, 'show']);
     Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store']);
 
-    Route::get('/suppliers', [SupplierController::class, 'index']);
-    Route::post('/suppliers', [SupplierController::class, 'store']);
+    Route::apiResource('/suppliers', SupplierController::class);
 
     Route::apiResource('/doctors', DoctorController::class);
 

@@ -9,5 +9,13 @@ class Supplier extends Model
 {
     use HasFactory;
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'code',
+        'name',
+        'phone',
+        'email',
+        'address',
+        'npwp',
+        'is_active',
+    ];
 }
