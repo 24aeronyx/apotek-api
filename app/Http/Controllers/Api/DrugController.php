@@ -21,7 +21,7 @@ class DrugController extends Controller
                 $q->where('stock_qty', '>', 0)->orderBy('expired_date', 'asc');
             }
         ])
-            ->where('is_active', true)
+            // ->where('is_active', true) <-- Hapus atau comment baris ini
             ->orderBy('name', 'asc')
             ->get()
             ->map(function ($drug) {
@@ -34,7 +34,6 @@ class DrugController extends Controller
             'data' => $drugs
         ]);
     }
-
     // 2. Tambah Obat Baru + Batch Awal
     public function store(Request $request)
     {
@@ -135,5 +134,48 @@ class DrugController extends Controller
             'message' => 'Batch baru berhasil ditambahkan',
             'data' => $batch
         ], 201);
+    }
+
+    // 4. Update Data Obat & Status Active / Non-Active
+    public function update(Request $request, $id)
+    {
+        $drug = Drug::findOrFail($id);
+
+        $validated = $request->validate([
+            'code' => 'required|string|unique:drugs,code,' . $drug->id,
+            'name' => 'required|string',
+            'category_id' => 'nullable|exists:drug_categories,id',
+            'kfa_code' => 'nullable|string',
+            'unit' => 'required|string',
+            'purchase_price' => 'required|numeric|min:0',
+            'selling_price' => 'required|numeric|min:0',
+            'min_stock' => 'nullable|integer|min:0',
+            'is_active' => 'required|boolean',
+        ]);
+
+        try {
+            $drug->update([
+                'code' => $validated['code'],
+                'name' => $validated['name'],
+                'category_id' => $validated['category_id'] ?? $drug->category_id,
+                'kfa_code' => $validated['kfa_code'] ?? $drug->kfa_code,
+                'unit' => $validated['unit'],
+                'purchase_price' => $validated['purchase_price'],
+                'selling_price' => $validated['selling_price'],
+                'min_stock' => $validated['min_stock'] ?? $drug->min_stock,
+                'is_active' => $validated['is_active'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data obat berhasil diperbarui',
+                'data' => $drug
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memperbarui data obat: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -6,11 +6,105 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Exception;
 
 class UserController extends Controller
 {
+    public function accessOptions()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'roles' => Role::with('permissions')->orderBy('name')->get(),
+                'permissions' => Permission::orderBy('name')->get(),
+            ],
+        ]);
+    }
+
+    public function updateAccess(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'roles' => 'present|array',
+            'roles.*' => 'string|exists:roles,name',
+            'permissions' => 'present|array',
+            'permissions.*' => 'string|exists:permissions,name',
+        ]);
+
+        try {
+            $user = User::findOrFail($id);
+            $user->syncRoles($validated['roles']);
+            $user->syncPermissions($validated['permissions']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Hak akses pengguna berhasil diperbarui',
+                'data' => $user->load(['roles', 'permissions']),
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memperbarui hak akses: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function storeRole(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:roles,name',
+            'permissions' => 'present|array',
+            'permissions.*' => 'string|exists:permissions,name',
+        ]);
+
+        try {
+            $role = Role::create(['name' => $validated['name'], 'guard_name' => 'web']);
+            $role->syncPermissions($validated['permissions']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Role berhasil dibuat',
+                'data' => $role->load('permissions'),
+            ], 201);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat role: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function updateRole(Request $request, $id)
+    {
+        $role = Role::findOrFail($id);
+        $validated = $request->validate([
+            'name' => 'required|string|max:100|unique:roles,name,' . $id,
+            'permissions' => 'present|array',
+            'permissions.*' => 'string|exists:permissions,name',
+        ]);
+
+        $role->update(['name' => $validated['name']]);
+        $role->syncPermissions($validated['permissions']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Role berhasil diperbarui',
+            'data' => $role->load('permissions'),
+        ]);
+    }
+
+    public function destroyRole($id)
+    {
+        $role = Role::findOrFail($id);
+        if (in_array(strtolower($role->name), ['admin', 'super admin'])) {
+            return response()->json(['success' => false, 'message' => 'Role administrator tidak dapat dihapus'], 400);
+        }
+
+        $role->delete();
+        return response()->json(['success' => true, 'message' => 'Role berhasil dihapus']);
+    }
+
     public function index(Request $request)
 {
     $search = $request->query('search');
@@ -38,6 +132,14 @@ class UserController extends Controller
         'success' => true,
         'data'    => $users
     ]);
+    }
+
+    public function show($id)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => User::with(['roles', 'permissions'])->findOrFail($id),
+        ]);
     }
 
     public function store(Request $request)

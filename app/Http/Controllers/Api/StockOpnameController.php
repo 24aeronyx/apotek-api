@@ -9,9 +9,18 @@ use App\Models\StockOpname;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class StockOpnameController extends Controller
 {
+    public function pdf(Request $request)
+    {
+        $response = $this->index($request);
+        $payload = json_decode($response->getContent(), true);
+
+        return Pdf::loadView('reports.stock-opname-pdf', ['payload' => $payload])->setPaper('a4', 'landscape')->download('laporan-stok-opname-' . ($payload['current_month'] ?? date('Y-m')) . '.pdf');
+    }
+
     public function index(Request $request)
     {
         $month   = $request->query('month', Carbon::now()->format('Y-m'));
@@ -127,6 +136,7 @@ class StockOpnameController extends Controller
                     'type'           => $difference > 0 ? 'IN' : 'OUT',
                     'qty'            => abs($difference),
                     'reference_type' => 'STOCK_ADJUSTMENT',
+                    'reference_id'   => $opname->id,
                     'notes'          => 'Opname Bulanan: ' . $request->reason,
                     'created_by'     => $request->user()->id,
                 ]);

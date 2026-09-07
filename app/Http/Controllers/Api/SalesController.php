@@ -7,6 +7,7 @@ use App\Models\DrugBatch;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockMutation;
+use App\Models\Visit;
 use App\Services\FefoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,41 @@ class SalesController extends Controller
         $this->fefoService = $fefoService;
     }
 
-    // 1. Process Transaksi Penjualan Kasir (POS)
+    /**
+     * 1. Get E-Resep Pasien yang Menunggu Pembayaran (Untuk POS Kasir)
+     */
+    public function pendingPrescriptions()
+    {
+        try {
+            $pendingVisits = Visit::with([
+                'patient',
+                'rme.prescriptions.drug'
+            ])
+                // Hanya ambil visit yang memiliki resep di medical_records
+                ->whereHas('rme.prescriptions')
+                // RME yang selesai diperiksa menunggu pembayaran di POS.
+                ->where('status', 'WAITING_PAYMENT')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $pendingVisits
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Error Pending Prescriptions: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 2. Process Transaksi Penjualan Kasir (POS)
+     */
     public function store(Request $request)
     {
         $request->validate([
@@ -29,6 +64,8 @@ class SalesController extends Controller
             'visit_id' => 'nullable|exists:visits,id',
             'payment_method' => 'required|in:CASH,QRIS,DEBIT,TRANSFER,BPJS',
             'discount_amount' => 'nullable|numeric|min:0',
+            'pay_amount' => 'nullable|numeric|min:0',
+            'change_amount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.drug_id' => 'required|exists:drugs,id',
             'items.*.qty' => 'required|integer|min:1',
@@ -37,7 +74,7 @@ class SalesController extends Controller
 
         try {
             $sale = DB::transaction(function () use ($request) {
-                // Buat Header Transaksi
+                // 1. Buat Header Transaksi
                 $sale = Sale::create([
                     'invoice_number' => 'INV/' . date('Ymd') . '/' . strtoupper(substr(uniqid(), -5)),
                     'visit_id' => $request->visit_id,
@@ -54,7 +91,7 @@ class SalesController extends Controller
 
                 $totalAmount = 0;
 
-                // Iterasi Barang & Eksekusi Potong Stok FEFO
+                // 2. Iterasi Barang & Eksekusi Potong Stok FEFO
                 foreach ($request->items as $item) {
                     $subtotal = $item['qty'] * $item['unit_price'];
                     $totalAmount += $subtotal;
@@ -78,7 +115,7 @@ class SalesController extends Controller
                     }
                 }
 
-                // Hitung Akhir Transaksi
+                // 3. Hitung Akhir Transaksi
                 $discount = $request->discount_amount ?? 0;
                 $finalAmount = max(0, $totalAmount - $discount);
 
@@ -86,6 +123,11 @@ class SalesController extends Controller
                     'total_amount' => $totalAmount,
                     'final_amount' => $finalAmount,
                 ]);
+
+                // 4. Update Status Kunjungan jika Transaksi Berasal dari RME / Poliklinik
+                if ($request->visit_id) {
+                    Visit::where('id', $request->visit_id)->update(['status' => 'COMPLETED']);
+                }
 
                 return $sale->load(['saleItems.drug', 'saleItems.drugBatch']);
             });
@@ -104,7 +146,9 @@ class SalesController extends Controller
         }
     }
 
-    // 2. Riwayat Penjualan
+    /**
+     * 3. Riwayat Penjualan
+     */
     public function index()
     {
         $sales = Sale::with(['cashier', 'patient', 'saleItems.drug'])
@@ -117,7 +161,9 @@ class SalesController extends Controller
         ]);
     }
 
-    // 3. Detail Penjualan / Cetak Ulang Struk
+    /**
+     * 4. Detail Penjualan / Cetak Ulang Struk
+     */
     public function show($id)
     {
         $sale = Sale::with(['cashier', 'patient', 'saleItems.drug', 'saleItems.drugBatch'])->findOrFail($id);
@@ -128,7 +174,9 @@ class SalesController extends Controller
         ]);
     }
 
-    // 4. Fitur Retur Transaksi Penjualan (Kembalikan Stok ke Batch Asal)
+    /**
+     * 5. Fitur Retur Transaksi Penjualan (Kembalikan Stok ke Batch Asal)
+     */
     public function returnSale(Request $request, $id)
     {
         $request->validate([
@@ -139,7 +187,7 @@ class SalesController extends Controller
         try {
             $sale = Sale::with('saleItems')->findOrFail($id);
 
-            if ($sale->status === 'RETURNED') {
+            if (isset($sale->status) && $sale->status === 'RETURNED') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Transaksi ini sudah pernah diretur sebelumnya!',
@@ -167,8 +215,10 @@ class SalesController extends Controller
                 }
             }
 
-            // Update Status Transaksi Penjualan
-            $sale->status = 'RETURNED';
+            // Update Status Transaksi Penjualan & Status Visit jika ada
+            if (isset($sale->status)) {
+                $sale->status = 'RETURNED';
+            }
             $sale->notes = 'DIRETUR: ' . $request->reason;
             $sale->save();
 

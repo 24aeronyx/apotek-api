@@ -33,4 +33,15 @@ class Visit extends Model
     {
         return $this->belongsTo(User::class, 'doctor_id');
     }
+
+    public function prescriptions()
+    {
+        return $this->hasMany(Prescription::class);
+    }
+
+    public function medicalRecord()
+    {
+        // Sesuaikan foreign key jika di tabel medical_records nama kolomnya visit_id
+        return $this->hasOne(MedicalRecord::class, 'visit_id');
+    }
 }

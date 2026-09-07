@@ -103,6 +103,7 @@ class PurchaseInvoiceController extends Controller
                     'type'           => 'IN',
                     'qty'            => $itemData['qty'],
                     'reference_type' => 'PURCHASE_INVOICE',
+                    'reference_id'   => $invoice->id,
                     'notes'          => 'Faktur Masuk No: ' . $request->invoice_number,
                     'created_by'     => $request->user()->id,
                 ]);

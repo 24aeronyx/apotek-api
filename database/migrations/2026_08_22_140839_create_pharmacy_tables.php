@@ -104,6 +104,8 @@ return new class extends Migration {
             $table->timestamp('created_at')->useCurrent();
             $table->decimal('pay_amount', 15, 2)->default(0);
             $table->decimal('change_amount', 15, 2)->default(0);
+            $table->enum('status', ['UNPAID', 'PAID', 'CANCELLED'])->default('UNPAID')->after('payment_method');
+            $table->foreignId('cashier_user_id')->nullable()->change(); // Buat nullable jika ingin di-generate awal oleh sistem
         });
 
         Schema::create('sale_items', function (Blueprint $table) {

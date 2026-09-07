@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\MedicalRecord;
+use App\Models\Prescription;
 use App\Models\Visit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,24 +12,33 @@ use Exception;
 
 class MedicalRecordController extends Controller
 {
-    // 1. Get List Kunjungan Pasien (Dengan Filter Tanggal & Pencarian Multi-Atribut)
-    // 1. Get List Kunjungan Pasien (Dengan Filter Tanggal & Pencarian)
+    /**
+     * 1. Get List Kunjungan Pasien (Filter Tanggal, Status Assesmen, & Search)
+     */
     public function getVisits(Request $request)
     {
         $date = $request->query('date');
         $search = $request->query('search');
         $patientId = $request->query('patient_id');
+        $status = $request->query('status'); // 'ALL' | 'PENDING' | 'DONE'
 
-        $query = Visit::with(['patient', 'rme', 'creator'])
+        $query = Visit::with(['patient', 'rme.prescriptions.drug', 'creator'])
             ->orderBy('created_at', 'desc');
 
-        // Jika filter spesifik per pasien (untuk histori RME samping)
+        // Filter Histori per Pasien (untuk side-panel EHR)
         if ($patientId) {
             $query->where('patient_id', $patientId);
         } else {
-            // Filter Tanggal (Hanya jika parameter date dikirim dan tidak kosong)
+            // Filter Tanggal
             if ($date) {
                 $query->whereDate('created_at', $date);
+            }
+
+            // Filter Status Assesmen Medis
+            if ($status === 'PENDING') {
+                $query->doesntHave('rme');
+            } elseif ($status === 'DONE') {
+                $query->has('rme');
             }
 
             // Filter Pencarian Multi-Atribut
@@ -46,7 +56,7 @@ class MedicalRecordController extends Controller
             }
         }
 
-        $visits = $query->get();
+        $visits = $request->has('page') ? $query->paginate(10) : $query->get();
 
         return response()->json([
             'success' => true,
@@ -54,8 +64,9 @@ class MedicalRecordController extends Controller
         ]);
     }
 
-    // 2. Buat Kunjungan Baru / Registrasi Antrean
-    // 1. Buat Kunjungan Baru dengan Dokter Tujuan
+    /**
+     * 2. Registrasi Kunjungan Pasien
+     */
     public function createVisit(Request $request)
     {
         $validated = $request->validate([
@@ -69,7 +80,7 @@ class MedicalRecordController extends Controller
             'patient_id' => $validated['patient_id'],
             'doctor_id' => $validated['doctor_id'] ?? null,
             'chief_complaint' => $validated['chief_complaint'] ?? 'Pemeriksaan Kesehatan Umum',
-            'status' => 'WAITING',
+            'status' => 'REGISTERED',
             'created_by' => auth()->id() ?? 1,
         ]);
 
@@ -80,6 +91,9 @@ class MedicalRecordController extends Controller
         ], 201);
     }
 
+    /**
+     * 3. Simpan RME & E-Resep (Siap Diambil Kasir)
+     */
     public function storeRme(Request $request, $visitId)
     {
         $validated = $request->validate([
@@ -98,7 +112,7 @@ class MedicalRecordController extends Controller
 
         try {
             $rme = DB::transaction(function () use ($visit, $validated) {
-                // 1. Simpan / Update Rekam Medis
+                // 1. Simpan / Update Medical Record
                 $record = MedicalRecord::updateOrCreate(
                     ['visit_id' => $visit->id],
                     [
@@ -112,11 +126,11 @@ class MedicalRecordController extends Controller
                     ]
                 );
 
-                // 2. Simpan E-Resep jika dikirim dari frontend
-                if (!empty($validated['prescriptions'])) {
-                    // Hapus resep lama jika ini adalah update
-                    if (method_exists($record, 'prescriptions')) {
-                        $record->prescriptions()->delete();
+                // 2. Simpan E-Resep ke Tabel `prescriptions`
+                if (method_exists($record, 'prescriptions')) {
+                    $record->prescriptions()->delete(); // Clear resep lama jika update
+
+                    if (!empty($validated['prescriptions'])) {
                         foreach ($validated['prescriptions'] as $pres) {
                             $record->prescriptions()->create([
                                 'drug_id' => $pres['drug_id'],
@@ -127,15 +141,15 @@ class MedicalRecordController extends Controller
                     }
                 }
 
-                // 3. Update Status Kunjungan Selesai
-                $visit->update(['status' => 'COMPLETED']);
+                // 3. Update Status Kunjungan menjadi Siap Pembayaran Kasir
+                $visit->update(['status' => 'WAITING_PAYMENT']);
 
-                return $record;
+                return $record->load('prescriptions.drug');
             });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Rekam Medis Elektronik (RME) berhasil disimpan',
+                'message' => 'Rekam medis & E-Resep berhasil disimpan. Tagihan siap diproses Kasir.',
                 'data' => $rme
             ], 200);
 
